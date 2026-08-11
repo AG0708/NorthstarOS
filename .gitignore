@@ -1,0 +1,14 @@
+/build/*
+!/build/*.mk
+/build-*/
+/artifacts/
+*.o
+*.d
+*.elf
+*.bin
+*.img
+*.fs
+*.map
+*.log
+__pycache__/
+.DS_Store
