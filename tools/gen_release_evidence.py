@@ -177,6 +177,81 @@ def load_json(path: pathlib.Path) -> Dict[str, object]:
     return value
 
 
+def hash_with_algorithm(path: pathlib.Path, algorithm: str) -> str:
+    digest = hashlib.new(algorithm)
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def validate_sbom_inventory(sbom: Dict[str, object], source: pathlib.Path) -> int:
+    packages = sbom.get("packages")
+    files = sbom.get("files")
+    if (
+        sbom.get("spdxVersion") != "SPDX-2.3"
+        or sbom.get("dataLicense") != "CC0-1.0"
+        or sbom.get("documentDescribes") != ["SPDXRef-Package-NorthstarOS"]
+        or not isinstance(packages, list)
+        or len(packages) != 1
+        or not isinstance(packages[0], dict)
+        or packages[0].get("SPDXID") != "SPDXRef-Package-NorthstarOS"
+        or packages[0].get("name") != "NorthstarOS"
+        or packages[0].get("filesAnalyzed") is not True
+        or packages[0].get("licenseDeclared") != "MIT"
+        or not isinstance(files, list)
+        or not files
+    ):
+        raise EvidenceError("SBOM is not the expected SPDX 2.3 source inventory")
+    version = (source / "VERSION").read_text(encoding="ascii").strip()
+    if packages[0].get("versionInfo") != version:
+        raise EvidenceError("SBOM version does not match VERSION")
+
+    expected = {
+        "./" + path.relative_to(source).as_posix(): path
+        for path in source_files(source)
+    }
+    observed: Dict[str, Dict[str, object]] = {}
+    for record in files:
+        if not isinstance(record, dict) or not isinstance(record.get("fileName"), str):
+            raise EvidenceError("SBOM contains an invalid file record")
+        name = str(record["fileName"])
+        if name in observed:
+            raise EvidenceError("SBOM contains a duplicate file record: {}".format(name))
+        observed[name] = record
+    if set(observed) != set(expected):
+        raise EvidenceError("SBOM file inventory does not match the release source tree")
+
+    sha1_values = []
+    for name, path in expected.items():
+        checksums = observed[name].get("checksums")
+        if not isinstance(checksums, list):
+            raise EvidenceError("SBOM file has no checksums: {}".format(name))
+        checksum_map = {
+            item.get("algorithm"): item.get("checksumValue")
+            for item in checksums
+            if isinstance(item, dict)
+        }
+        actual_sha1 = hash_with_algorithm(path, "sha1")
+        actual_sha256 = hash_file(path)
+        if (
+            checksum_map.get("SHA1") != actual_sha1
+            or checksum_map.get("SHA256") != actual_sha256
+        ):
+            raise EvidenceError("SBOM checksum mismatch: {}".format(name))
+        sha1_values.append(actual_sha1)
+    verification = hashlib.sha1(
+        "".join(sorted(sha1_values)).encode("ascii")
+    ).hexdigest()
+    package_verification = packages[0].get("packageVerificationCode")
+    if (
+        not isinstance(package_verification, dict)
+        or package_verification.get("packageVerificationCodeValue") != verification
+    ):
+        raise EvidenceError("SBOM package verification code is incorrect")
+    return len(expected)
+
+
 def evidence_files(paths: Sequence[pathlib.Path], output: pathlib.Path) -> List[pathlib.Path]:
     files: List[pathlib.Path] = []
     output_resolved = output.resolve()
@@ -294,22 +369,8 @@ def main() -> int:
         sbom_record = None
         if sbom_path is not None:
             sbom = load_json(sbom_path)
-            packages = sbom.get("packages")
-            if (
-                sbom.get("spdxVersion") != "SPDX-2.3"
-                or sbom.get("dataLicense") != "CC0-1.0"
-                or sbom.get("documentDescribes")
-                != ["SPDXRef-Package-NorthstarOS"]
-                or not isinstance(packages, list)
-                or len(packages) != 1
-                or not isinstance(packages[0], dict)
-                or packages[0].get("SPDXID")
-                != "SPDXRef-Package-NorthstarOS"
-                or packages[0].get("licenseDeclared") != "MIT"
-                or not isinstance(sbom.get("files"), list)
-                or not sbom["files"]
-            ):
-                raise EvidenceError("SBOM is not the expected SPDX 2.3 source inventory")
+            sbom_files = validate_sbom_inventory(sbom, source)
+            packages = sbom["packages"]
             if state.get("commit") is not None and not str(
                 packages[0].get("downloadLocation", "")
             ).endswith("@" + str(state["commit"])):
@@ -318,7 +379,7 @@ def main() -> int:
                 "path": display_path(sbom_path, source),
                 "sha256": hash_file(sbom_path),
                 "spdx_version": "SPDX-2.3",
-                "files": len(sbom["files"]),
+                "files": sbom_files,
             }
         elif arguments.require_release_gates:
             raise EvidenceError("--require-release-gates requires --sbom")

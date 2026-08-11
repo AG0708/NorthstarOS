@@ -1434,6 +1434,7 @@ class HostVerificationToolTests(unittest.TestCase):
 
     def test_spdx_sbom_is_deterministic_commit_bound_and_fail_closed(self) -> None:
         sbom_tool = load_tool_module("gen_sbom")
+        release_tool = load_tool_module("gen_release_evidence")
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary) / "NorthstarOS"
             source.mkdir()
@@ -1490,6 +1491,11 @@ class HostVerificationToolTests(unittest.TestCase):
                 document["packages"][0]["downloadLocation"].endswith("@" + commit)
             )
             self.assertEqual(len(document["files"]), 3)
+            self.assertEqual(release_tool.validate_sbom_inventory(document, source), 3)
+
+            document["files"][0]["checksums"][1]["checksumValue"] = "0" * 64
+            with self.assertRaisesRegex(release_tool.EvidenceError, "checksum mismatch"):
+                release_tool.validate_sbom_inventory(document, source)
 
             (source / "kernel.c").write_text("int changed;\n", encoding="utf-8")
             error_output = io.StringIO()
