@@ -1469,10 +1469,15 @@ class HostVerificationToolTests(unittest.TestCase):
                     "require_clean": True,
                 },
             )()
-            with mock.patch.object(sbom_tool, "parse_args", return_value=arguments):
+            tool_output = io.StringIO()
+            with mock.patch.object(
+                sbom_tool, "parse_args", return_value=arguments
+            ), contextlib.redirect_stdout(tool_output):
                 self.assertEqual(sbom_tool.main(), 0)
                 first_hash = sbom_tool.sha256_file(output)
                 self.assertEqual(sbom_tool.main(), 0)
+            self.assertNotIn(str(source), tool_output.getvalue())
+            self.assertIn("artifacts/NorthstarOS.spdx.json", tool_output.getvalue())
             self.assertEqual(sbom_tool.sha256_file(output), first_hash)
             document = json.loads(output.read_text(encoding="utf-8"))
             commit = subprocess.run(

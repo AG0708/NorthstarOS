@@ -598,7 +598,7 @@ def main() -> int:
     except (OSError, EvidenceError) as error:
         print("gen_release_evidence: error: {}".format(error), file=sys.stderr)
         return 2
-    print("{}  {}".format(manifest_hash, output))
+    print("{}  {}".format(manifest_hash, display_path(output, source)))
     return 0
 
 

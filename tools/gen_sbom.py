@@ -87,6 +87,13 @@ def spdx_file_id(relative: str) -> str:
     return "SPDXRef-File-{}".format(digest)
 
 
+def display_path(path: pathlib.Path, source: pathlib.Path) -> str:
+    try:
+        return path.resolve().relative_to(source.resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=pathlib.Path, default=ROOT)
@@ -221,7 +228,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     except (OSError, SbomError, subprocess.TimeoutExpired) as error:
         print("gen_sbom: error: {}".format(error), file=sys.stderr)
         return 2
-    print("{}  {}".format(sha256_file(output), output))
+    print("{}  {}".format(sha256_file(output), display_path(output, source)))
     return 0
 
 

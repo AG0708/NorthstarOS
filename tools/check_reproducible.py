@@ -75,6 +75,13 @@ def source_tree_hash(root: pathlib.Path) -> str:
     return digest.hexdigest()
 
 
+def display_path(path: pathlib.Path, source: pathlib.Path) -> str:
+    try:
+        return path.resolve().relative_to(source.resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
 def deterministic_environment(epoch: int) -> Dict[str, str]:
     environment = dict(os.environ)
     environment.update(
@@ -245,7 +252,7 @@ def main() -> int:
     report_path = artifacts_dir / "report.json"
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     if exit_code == 0:
-        print("reproducible: {}".format(report_path))
+        print("reproducible: {}".format(display_path(report_path, source)))
         for comparison in report["comparisons"]:
             print("{}  {}".format(comparison["build_1_sha256"], comparison["path"]))
     return exit_code
