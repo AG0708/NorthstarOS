@@ -13,6 +13,10 @@ enum {
     M4_SCRATCH_SECTORS = 8192,
     M4_MIN_PRIMARY_SECTORS = 32768,
     M4_PAYLOAD_BYTES = 15 * NSFS_BLOCK_SIZE + 137,
+    /* Cache-flush completion is asynchronous in QEMU and can be delayed by a
+     * loaded host.  Keep a finite protocol bound, but leave enough I/O polls
+     * for the documented Ubuntu/QEMU 8.2 CI lane. */
+    M4_ATA_POLL_LIMIT = 10000000,
 };
 
 struct m4_control_sector {
@@ -290,7 +294,7 @@ void northstar_m4_run(const struct northstar_boot_info *boot)
         .relax = ata_relax,
     };
     const struct ns_ata_config ata_configuration = {
-        .poll_limit = 1000000u,
+        .poll_limit = M4_ATA_POLL_LIMIT,
         .timeout_ns = 0,
         .disable_interrupts = true,
     };

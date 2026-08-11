@@ -5,7 +5,7 @@ bounded by the tagged source, checksummed artifacts, and the evidence manifest.
 
 ## 0.1.0 - 2026-08-11
 
-Initial public release of the freestanding x86-64 hobby operating system.
+Initial release of the freestanding x86-64 hobby operating system.
 
 ### Implemented
 
