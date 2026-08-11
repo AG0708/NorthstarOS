@@ -1,0 +1,37 @@
+{
+  "id": "m5_network_interop",
+  "milestone": "M5",
+  "description": "The RTL8139-backed stack interoperates with deterministic host DHCP, DNS, ICMP, UDP, TCP, and HTTP peers.",
+  "timeout_seconds": 120,
+  "required_serial": [
+    "^# NS_TEST net\\.rtl8139 PASS$",
+    "^# NS_TEST net\\.dhcp PASS$",
+    "^# NS_TEST net\\.dns PASS$",
+    "^# NS_TEST net\\.icmp PASS$",
+    "^# NS_TEST net\\.ring3-usercopy PASS$",
+    "^# NS_TEST net\\.udp PASS$",
+    "^# NS_TEST net\\.tcp PASS$",
+    "^NS:NET:HTTP:RESPONSE status=200 body_sha256=5ebbf3b82d2e188ee3abf4547bf3a4a8dbf557a7f939cb5d817542f7385df943$",
+    "^# NS_TEST net\\.http PASS$",
+    "^NS:NET:RING3 program=/bin/netcheck syscall_copyin=contained$",
+    "^# NS_TEST net\\.ring3-program PASS$",
+    "^NS:NET:ROBUST irq=[1-9][0-9]* retransmit=[1-9][0-9]* reorder=[1-9][0-9]* duplicate=[1-9][0-9]* bad_checksum=[1-9][0-9]* dropped=[1-9][0-9]*$",
+    "^# NS_TEST net\\.robustness PASS$",
+    "^# NS_GATE G7 PASS$",
+    "^NS:RUN:COMPLETE$"
+  ],
+  "forbidden_serial": [
+    "(?i)kernel panic",
+    "(?i)triple fault",
+    "^# NS_TEST net\\..* FAIL$"
+  ],
+  "qemu_args": [
+    "-m",
+    "256M"
+  ],
+  "expected_debug_exit": 16,
+  "requires": {
+    "network": true,
+    "persistence": true
+  }
+}

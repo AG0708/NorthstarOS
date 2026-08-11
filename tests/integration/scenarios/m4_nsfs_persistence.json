@@ -1,0 +1,37 @@
+{
+  "id": "m4_nsfs_persistence",
+  "milestone": "M4",
+  "description": "ATA-backed NorthstarFS preserves nested and indirect-extent data across a complete powered-off reboot.",
+  "timeout_seconds": 90,
+  "required_serial": [
+    "^NS:ATA:READY sectors=[1-9][0-9]*$",
+    "^NS:NSFS:MOUNT mode=rw state=(clean|recovered)$",
+    "^ok [0-9]+ - nsfs direct-indirect persistence$",
+    "^ok [0-9]+ - nsfs nested directory persistence$",
+    "^ok [0-9]+ - nsfs rejects corrupt metadata$",
+    "^NS:GATE:G4:PASS image_sha256=[0-9a-f]{64}$",
+    "^NS:RUN:COMPLETE$"
+  ],
+  "forbidden_serial": [
+    "(?i)kernel panic",
+    "(?i)triple fault",
+    "^not ok [0-9]+ - nsfs",
+    "^NS:NSFS:MOUNT mode=unsafe"
+  ],
+  "qemu_args": [
+    "-m",
+    "256M"
+  ],
+  "expected_debug_exit": 16,
+  "requires": {
+    "network": false,
+    "persistence": true
+  },
+  "filesystem_probe": {
+    "offset_bytes": 16777216,
+    "tail_reserve_bytes": 4194304,
+    "path": "/evidence/nested/payload.bin",
+    "expected_bytes": 61577,
+    "expected_sha256": "29fe680bb728551e867fff0011dcfcdc098cf55bc74dbf53e42887ca6a43306e"
+  }
+}

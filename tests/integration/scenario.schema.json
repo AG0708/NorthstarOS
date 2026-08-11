@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://northstar.invalid/schemas/integration-scenario-v1.json",
+  "title": "NorthstarOS QEMU integration scenario",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{2,63}$"
+    },
+    "milestone": {
+      "type": "string",
+      "enum": ["M0", "M1", "M2", "M3", "M4", "M5"]
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600
+    },
+    "required_serial": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Required multiline regexes. The last item must be ^NS:RUN:COMPLETE$ and is the unique terminal completion sentinel.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "forbidden_serial": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "qemu_args": {
+      "type": "array",
+      "description": "Additional argv entries; the runner rejects overrides of machine, CPU, accelerator, storage, serial, and evidence controls.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "expected_debug_exit": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 127,
+      "default": 16,
+      "description": "Logical value written by the guest to isa-debug-exit; 16 is canonical success (host status 33)."
+    },
+    "requires": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "network": {"type": "boolean"},
+        "persistence": {"type": "boolean"}
+      },
+      "required": ["network", "persistence"]
+    },
+    "http_probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional independent HTTP request made by the host after the guest ready marker.",
+      "properties": {
+        "ready_serial": {
+          "type": "string",
+          "minLength": 1
+        },
+        "host": {
+          "const": "127.0.0.1"
+        },
+        "host_port": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "guest_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "expected_status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "expected_body_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "ready_serial",
+        "host",
+        "host_port",
+        "guest_port",
+        "path",
+        "expected_status",
+        "expected_body_sha256"
+      ]
+    },
+    "filesystem_probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional independent host fsck plus file hash over the writable persistence image.",
+      "properties": {
+        "offset_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "multipleOf": 4096
+        },
+        "tail_reserve_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "multipleOf": 4096
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "expected_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1073741824
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "offset_bytes",
+        "tail_reserve_bytes",
+        "path",
+        "expected_bytes",
+        "expected_sha256"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "milestone",
+    "description",
+    "timeout_seconds",
+    "required_serial",
+    "forbidden_serial",
+    "qemu_args",
+    "requires"
+  ]
+}

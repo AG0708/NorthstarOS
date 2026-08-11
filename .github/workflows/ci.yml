@@ -1,0 +1,335 @@
+name: NorthstarOS CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: northstar-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CROSS: x86_64-linux-gnu-
+  LANG: C
+  LC_ALL: C
+  PYTHONHASHSEED: "0"
+  SOURCE_DATE_EPOCH: "1700000000"
+  TZ: UTC
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  repository-contract:
+    name: Repository contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Reject whitespace and conflict-marker damage
+        run: |
+          set -euo pipefail
+          empty_tree="$(git hash-object -t tree /dev/null)"
+          git diff --check "${empty_tree}" HEAD --
+          if git grep -nE '^(<<<<<<<|=======|>>>>>>>)'; then
+            echo 'Merge-conflict marker found in source.' >&2
+            exit 1
+          fi
+
+      - name: Verify public build and verification interface
+        run: |
+          set -euo pipefail
+          test -f Makefile
+          test -s build/boot_memory.mk
+          test -s build/verification.mk
+          for target in image test-host test-boot test-interactive test-journal test-repeat test release reproducibility clean; do
+            if ! grep -Eq "^${target}([[:space:]]*|[[:space:]]+[^:]*)?:" Makefile; then
+              echo "Required Make target is missing: ${target}" >&2
+              exit 1
+            fi
+          done
+          for document in \
+            CHANGELOG.md \
+            THIRD_PARTY_NOTICES.md \
+            docs/ARCHITECTURE.md \
+            docs/COMPLETION_GATES.md \
+            docs/DEMO.md \
+            docs/SECURITY.md \
+            docs/TESTING.md; do
+            test -s "${document}" || {
+              echo "Required document is missing or empty: ${document}" >&2
+              exit 1
+            }
+          done
+
+  host-tests:
+    name: Host unit tests
+    needs: repository-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install host-test dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends gcc make python3
+
+      - name: Run host suite
+        run: |
+          set -euo pipefail
+          make test-host
+
+  image:
+    name: Freestanding image
+    needs: host-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install cross-build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            binutils-x86-64-linux-gnu \
+            gcc-x86-64-linux-gnu \
+            make \
+            nasm \
+            python3
+
+      - name: Build bootable image from clean state
+        run: |
+          set -euo pipefail
+          make clean
+          make image CROSS="${CROSS}"
+          test -s build/northstar.img
+
+      - name: Record artifact hashes and tool versions
+        run: |
+          set -euo pipefail
+          {
+            "${CROSS}gcc" --version | head -n 1
+            "${CROSS}ld" --version | head -n 1
+            nasm -v
+            python3 --version
+            make --version | head -n 1
+          } | tee build/tool-versions.txt
+          find build -maxdepth 1 -type f -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            | tee build/SHA256SUMS
+          grep -Eq '[[:xdigit:]]{64}[[:space:]]+build/northstar\.img$' \
+            build/SHA256SUMS
+
+      - name: Upload image evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: northstar-image-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            build/northstar.img
+            build/northstar.img.sha256
+            build/stage1.bin
+            build/stage2.bin
+            build/kernel.bin
+            build/kernel.elf
+            build/kernel.map
+            build/initrd.tar
+            build/northstar.fs
+            build/image-layout.json
+            build/image-manifest.json
+            build/generated/boot_layout.json
+            build/SHA256SUMS
+            build/tool-versions.txt
+
+  boot-test:
+    name: Headless boot protocol
+    needs: image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install boot-test dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            binutils-x86-64-linux-gnu \
+            gcc-x86-64-linux-gnu \
+            make \
+            nasm \
+            python3 \
+            qemu-system-x86
+
+      - name: Run bounded headless boot test
+        run: |
+          set -euo pipefail
+          qemu-system-x86_64 --version
+          make test-boot CROSS="${CROSS}"
+
+      - name: Upload boot diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: northstar-boot-diagnostics-${{ github.sha }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            build/**/*.log
+            build/**/*.tap
+            build/**/*.txt
+            artifacts/**/*.json
+            artifacts/**/*.log
+            artifacts/**/*.tap
+            tests/**/*.log
+            tests/**/*.tap
+
+  integration:
+    name: Current milestone suite
+    needs: boot-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install integration dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            binutils-x86-64-linux-gnu \
+            gcc-x86-64-linux-gnu \
+            make \
+            nasm \
+            python3 \
+            qemu-system-x86
+
+      - name: Run complete supported suite
+        run: |
+          set -euo pipefail
+          make test CROSS="${CROSS}"
+
+      - name: Run interactive PTY and journal-cut gates
+        run: |
+          set -euo pipefail
+          make test-interactive test-journal CROSS="${CROSS}"
+
+      - name: Upload integration diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: northstar-integration-diagnostics-${{ github.sha }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            build/**/*.log
+            build/**/*.tap
+            build/**/*.txt
+            artifacts/**/*.json
+            artifacts/**/*.jsonl
+            artifacts/**/*.log
+            artifacts/**/*.pcap
+            artifacts/**/*.tap
+            tests/**/*.log
+            tests/**/*.tap
+
+  reproducibility:
+    name: Reproducible image
+    needs: integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install cross-build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            binutils-x86-64-linux-gnu \
+            gcc-x86-64-linux-gnu \
+            make \
+            nasm \
+            python3
+
+      - name: Compare independent clean builds
+        run: |
+          set -euo pipefail
+          make reproducibility CROSS="${CROSS}"
+
+      - name: Upload reproducibility diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: northstar-reproducibility-${{ github.sha }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            build/**/*SHA256*
+            build/**/*.sha256
+            build/**/*.log
+            build/**/*.txt
+            artifacts/**/*.json
+            artifacts/**/*.log
+            artifacts/**/*.sha256
+            artifacts/**/*.txt
+
+  release-gate:
+    name: Manual full release gate
+    if: github.event_name == 'workflow_dispatch'
+    needs: reproducibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install release dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            binutils-x86-64-linux-gnu \
+            gcc-x86-64-linux-gnu \
+            make \
+            nasm \
+            python3 \
+            qemu-system-x86
+
+      - name: Run exact 100-repetition release gate
+        run: |
+          set -euo pipefail
+          make release CROSS="${CROSS}"
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: northstar-release-evidence-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            artifacts/release/**/*.json
+            artifacts/release/**/*.jsonl
+            artifacts/release/**/*.log
+            artifacts/release/**/*.pcap
+            artifacts/release/**/*.sha256
+            artifacts/release/**/*.spdx.json
+            artifacts/release/**/*.tap

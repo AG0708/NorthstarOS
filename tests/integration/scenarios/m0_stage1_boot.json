@@ -1,0 +1,25 @@
+{
+  "id": "m0_stage1_boot",
+  "milestone": "M0",
+  "description": "The repository-owned BIOS stage 1 executes and reaches the next boot stage.",
+  "timeout_seconds": 10,
+  "required_serial": [
+    "^NS:BOOT:S1:PASS$",
+    "^NS:GATE:G1:PASS$",
+    "^NS:RUN:COMPLETE$"
+  ],
+  "forbidden_serial": [
+    "(?i)panic",
+    "(?i)triple fault",
+    "^NS:BOOT:FAIL"
+  ],
+  "qemu_args": [
+    "-m",
+    "128M"
+  ],
+  "expected_debug_exit": 16,
+  "requires": {
+    "network": false,
+    "persistence": false
+  }
+}

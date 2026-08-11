@@ -1,0 +1,27 @@
+{
+  "id": "m1_long_mode_boot",
+  "milestone": "M1",
+  "description": "Stage 2 enters long mode and transfers a validated E820 boot contract to the higher-half C kernel.",
+  "timeout_seconds": 15,
+  "required_serial": [
+    "^NS:BOOT:S2:LONG_MODE$",
+    "^NS:BOOT:E820 entries=[1-9][0-9]*$",
+    "^NS:KERNEL:HIGHER_HALF$",
+    "^NS:GATE:G1:PASS$",
+    "^NS:RUN:COMPLETE$"
+  ],
+  "forbidden_serial": [
+    "(?i)panic",
+    "(?i)triple fault",
+    "^NS:BOOT:FAIL"
+  ],
+  "qemu_args": [
+    "-m",
+    "128M"
+  ],
+  "expected_debug_exit": 16,
+  "requires": {
+    "network": false,
+    "persistence": false
+  }
+}

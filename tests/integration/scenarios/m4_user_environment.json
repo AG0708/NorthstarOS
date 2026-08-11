@@ -1,0 +1,42 @@
+{
+  "id": "m4_user_environment",
+  "milestone": "M4",
+  "description": "PID 1 runs a deterministic Ring-3 shell script from initramfs across external ELF commands, pipes, NorthstarFS redirection, background wait/status, and child-fault recovery.",
+  "timeout_seconds": 60,
+  "required_serial": [
+    "^NORTHSTAR:INIT:READY pid=1$",
+    "^# NS_TEST shell\\.pipeline PASS$",
+    "^# NS_TEST shell\\.redirection PASS$",
+    "^# NS_TEST shell\\.background PASS$",
+    "^# NS_TEST shell\\.exit-status PASS$",
+    "^# NS_TEST shell\\.persistent-read PASS$",
+    "^# NS_TEST shell\\.fault-recovery PASS$",
+    "^NORTHSTAR:G5:USERLAND:PASS$",
+    "^NORTHSTAR:M4:SHELL:PASS$",
+    "^# NS_GATE G5 PASS$",
+    "^NS:RUN:COMPLETE$"
+  ],
+  "forbidden_serial": [
+    "(?i)kernel panic",
+    "(?i)triple fault",
+    "^# NS_TEST shell\\..* FAIL$",
+    "^NORTHSTAR:M4:SHELL:FAIL",
+    "^# NS_GATE G5 FAIL$"
+  ],
+  "qemu_args": [
+    "-m",
+    "256M"
+  ],
+  "expected_debug_exit": 16,
+  "requires": {
+    "network": false,
+    "persistence": true
+  },
+  "filesystem_probe": {
+    "offset_bytes": 16777216,
+    "tail_reserve_bytes": 4194304,
+    "path": "/g5-proof.manifest",
+    "expected_bytes": 99,
+    "expected_sha256": "e7809130979ff8a0ed674941da2bc179b1b45b14b2358d85e95fdad28b477b91"
+  }
+}

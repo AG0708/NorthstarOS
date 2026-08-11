@@ -1,0 +1,30 @@
+{
+  "id": "m3_ring3_processes",
+  "milestone": "M3",
+  "description": "Isolated Ring-3 processes are timer-preempted, communicate through a pipe, reject kernel pointers, and contain page and privileged-instruction faults.",
+  "timeout_seconds": 45,
+  "required_serial": [
+    "^ok 1 - ring3-entry$",
+    "^ok 2 - preemptive-progress$",
+    "^ok 3 - pipe-roundtrip$",
+    "^ok 4 - user-fault-contained$",
+    "^ok 5 - privileged-fault-contained$",
+    "^NORTHSTAR:M3:PASS$",
+    "^NS:RUN:COMPLETE$"
+  ],
+  "forbidden_serial": [
+    "(?i)kernel panic",
+    "(?i)triple fault",
+    "^not ok [0-9]+ -",
+    "^NORTHSTAR:M3:FAIL$"
+  ],
+  "qemu_args": [
+    "-m",
+    "256M"
+  ],
+  "expected_debug_exit": 16,
+  "requires": {
+    "network": false,
+    "persistence": false
+  }
+}

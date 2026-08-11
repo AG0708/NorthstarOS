@@ -1,0 +1,28 @@
+{
+  "id": "m2_memory_scheduler",
+  "milestone": "M2",
+  "description": "Kernel allocator, page protection, interrupt timer, and preemptive scheduler invariants pass together.",
+  "timeout_seconds": 30,
+  "required_serial": [
+    "^# NS_TEST mm\\.reserved-frames PASS$",
+    "^# NS_TEST mm\\.unique-allocation PASS$",
+    "^# NS_TEST mm\\.guard-page PASS$",
+    "^# NS_TEST sched\\.preemptive-progress PASS$",
+    "^# NS_GATE G2 PASS$",
+    "^NS:RUN:COMPLETE$"
+  ],
+  "forbidden_serial": [
+    "(?i)kernel panic",
+    "(?i)triple fault",
+    "^# NS_TEST .* FAIL$"
+  ],
+  "qemu_args": [
+    "-m",
+    "256M"
+  ],
+  "expected_debug_exit": 16,
+  "requires": {
+    "network": false,
+    "persistence": false
+  }
+}
