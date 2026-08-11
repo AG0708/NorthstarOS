@@ -1,0 +1,11 @@
+echo PIPELINE_OK | cat > /persist/pipeline.out
+echo REDIRECTION_OK > /persist/redirection.out
+sleep 1 &
+wait
+echo $? > /persist/wait-status.out
+fault
+echo $? > /persist/fault-status.out
+echo SHELL_SURVIVED_FAULT > /persist/survived.out
+cat /persist/evidence/nested/boot-proof.txt > /persist/persist-read.out
+g5check
+exit $?
