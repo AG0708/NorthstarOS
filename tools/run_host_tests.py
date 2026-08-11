@@ -390,6 +390,36 @@ def emit_tap(path: pathlib.Path, records: Sequence[Dict[str, object]]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def print_failure_logs(record: Dict[str, object], session: pathlib.Path) -> None:
+    """Make a failed compile or execution self-diagnosing in CI output."""
+    print(
+        "FAIL {} [{}] ({})".format(record["id"], record["mode"], record["kind"]),
+        file=sys.stderr,
+    )
+    for phase_name in ("compile", "run"):
+        phase = record.get(phase_name)
+        if not isinstance(phase, dict) or "log" not in phase:
+            continue
+        log_name = str(phase["log"])
+        log_path = session / log_name
+        print(
+            "--- {} log: {} (returncode={}, timed_out={}) ---".format(
+                phase_name,
+                log_name,
+                phase.get("returncode"),
+                phase.get("timed_out"),
+            ),
+            file=sys.stderr,
+        )
+        try:
+            output = log_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as error:
+            print("unable to read failure log: {}".format(error), file=sys.stderr)
+            continue
+        if output:
+            print(output, end="" if output.endswith("\n") else "\n", file=sys.stderr)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cc", default=os.environ.get("HOST_CC", "cc"))
@@ -450,6 +480,8 @@ def main() -> int:
                     run_timeout=arguments.run_timeout,
                 )
                 records.append(record)
+                if not record["passed"]:
+                    print_failure_logs(record, session)
                 if not record["passed"] and not arguments.keep_going:
                     stop = True
                     break
@@ -460,6 +492,8 @@ def main() -> int:
                 print("RUN {} [script]".format(test.stem), flush=True)
                 record = run_script_test(test, session=session, timeout=arguments.run_timeout)
                 records.append(record)
+                if not record["passed"]:
+                    print_failure_logs(record, session)
                 if not record["passed"] and not arguments.keep_going:
                     break
         expected_count = len(c_tests) * len(arguments.mode) + len(script_tests)

@@ -82,12 +82,24 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends gcc make python3
+          sudo apt-get install --yes --no-install-recommends build-essential python3
 
       - name: Run host suite
         run: |
           set -euo pipefail
           make test-host
+
+      - name: Upload host diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: northstar-host-diagnostics-${{ github.sha }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            artifacts/host/**/*.json
+            artifacts/host/**/*.log
+            artifacts/host/**/*.tap
 
   image:
     name: Freestanding image
@@ -313,7 +325,7 @@ jobs:
             python3 \
             qemu-system-x86
 
-      - name: Run exact 100-repetition release gate
+      - name: Run exact 700-cold-boot release gate
         run: |
           set -euo pipefail
           make release CROSS="${CROSS}"

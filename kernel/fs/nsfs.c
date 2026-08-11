@@ -1043,7 +1043,7 @@ static int nsfs_read_inode(struct nsfs *filesystem,
     uint64_t block_number;
     size_t offset;
     uint8_t *block = NULL;
-    bool allocated;
+    bool allocated = false;
     struct nsfs_disk_inode copy;
     uint32_t stored_checksum;
     int status;

@@ -203,8 +203,14 @@ int ns_vfs_dup2(struct ns_vfs_fdtable *table, int old_fd, int new_fd,
 int ns_vfs_open(struct ns_vfs_fdtable *table, const char *path,
                 uint32_t flags, uint32_t mode)
 {
+    size_t length;
+
     (void)table; (void)flags; (void)mode;
-    strncpy(active_fixture->opened, path, sizeof(active_fixture->opened));
+    length = strlen(path);
+    if (length >= sizeof(active_fixture->opened))
+        length = sizeof(active_fixture->opened) - 1u;
+    memcpy(active_fixture->opened, path, length);
+    active_fixture->opened[length] = '\0';
     return 7;
 }
 int ns_vfs_fstat(struct ns_vfs_fdtable *table, int fd,

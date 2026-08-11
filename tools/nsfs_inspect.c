@@ -322,7 +322,8 @@ static int walk_directory(struct inspect_context *context,
                 return -1;
             }
             if (nsfs_le32_to_cpu(raw.inode) != 0u) {
-                if (raw.name_len == 0u || raw.name_len > NSFS_NAME_MAX) {
+                /* name_len is an 8-bit field and NSFS_NAME_MAX is 255. */
+                if (raw.name_len == 0u) {
                     (void)snprintf(context->error, sizeof(context->error),
                                    "invalid directory name length");
                     return -1;
