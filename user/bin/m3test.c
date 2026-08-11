@@ -49,16 +49,35 @@ int main(void)
     int echo_pid = spawn_simple("/bin/echo", echo_argv, actions, 3);
     (void)close(descriptors[1]);
     char buffer[32];
-    int64_t length = read(descriptors[0], buffer, sizeof(buffer) - 1u);
+    size_t used = 0;
+    int read_error = 0;
+    while (used < sizeof(buffer) - 1u) {
+        int64_t length =
+            read(descriptors[0], buffer + used, sizeof(buffer) - 1u - used);
+        if (length < 0) {
+            read_error = errno;
+            break;
+        }
+        if (length == 0)
+            break;
+        used += (size_t)length;
+    }
     (void)close(descriptors[0]);
-    int echo_status;
-    if (echo_pid < 0 || waitpid(echo_pid, &echo_status, 0) < 0 ||
-        length <= 0) {
+    int echo_status = -1;
+    int wait_result = echo_pid < 0 ? -1 : waitpid(echo_pid, &echo_status, 0);
+    if (echo_pid < 0 || wait_result < 0 || echo_status != 0 ||
+        read_error != 0 || used == 0) {
+        dprintf(STDERR_FILENO,
+                "pipe diagnostic pid=%d wait=%d status=%d read_errno=%d "
+                "bytes=%u\n",
+                echo_pid, wait_result, echo_status, read_error, (unsigned)used);
         puts("not ok 3 - pipe-roundtrip");
         return 1;
     }
-    buffer[length] = '\0';
+    buffer[used] = '\0';
     if (strcmp(buffer, "pipe-roundtrip\n") != 0) {
+        dprintf(STDERR_FILENO, "pipe diagnostic unexpected bytes=%u\n",
+                (unsigned)used);
         puts("not ok 3 - pipe-roundtrip");
         return 1;
     }

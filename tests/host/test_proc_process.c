@@ -157,21 +157,25 @@ int main(void)
     CHECK(child->address_space != old_space && fixture.spaces_destroyed == 1);
     CHECK(child_thread->context.rip == 0x400003);
     CHECK(ns_proc_exit(&manager, child_thread, 37) == 0);
-    CHECK(child->state == NS_PROCESS_ZOMBIE);
+    CHECK(child->state == NS_PROCESS_ZOMBIE && child->files == NULL &&
+          fixture.files_destroyed == 1);
     int status = 0;
     CHECK(ns_proc_wait(&manager, init_thread, child->pid, 0, &status) > 0);
-    CHECK(status == 37 && init->child_count == 0);
+    CHECK(status == 37 && init->child_count == 0 &&
+          fixture.files_destroyed == 1);
 
     CHECK(ns_proc_spawn(&manager, init, &spec, &child, &child_thread) == 0);
     CHECK(ns_proc_wait(&manager, init_thread, child->pid, 0, &status) ==
           -NS_EAGAIN);
     init_thread->state = NS_THREAD_BLOCKED;
     CHECK(ns_proc_exit(&manager, child_thread, 9) == 0);
-    CHECK(fixture.wakeups == 1 && init_thread->state == NS_THREAD_READY);
+    CHECK(fixture.wakeups == 1 && init_thread->state == NS_THREAD_READY &&
+          fixture.files_destroyed == 2);
     CHECK(ns_proc_wait(&manager, init_thread, child->pid, 0, &status) > 0);
     CHECK(status == 9);
 
     CHECK(ns_proc_exit(&manager, init_thread, 0) == 0);
+    CHECK(fixture.files_destroyed == 3);
     CHECK(ns_proc_wait(&manager, kernel_thread, init->pid, 0, &status) > 0);
     CHECK(status == 0 && manager.init_process == NULL &&
           kernel->child_count == 0);

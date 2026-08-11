@@ -424,6 +424,12 @@ int ns_proc_exit(struct ns_process_manager *manager, struct ns_thread *caller,
         return 0;
     process->state = NS_PROCESS_ZOMBIE;
     process->exit_status = status;
+    /* Open descriptors are process resources, not zombie metadata.  Release
+       them at exit so pipe peers observe EOF even before the parent reaps. */
+    if (process->files != NULL && manager->ops.destroy_fd_table != NULL) {
+        manager->ops.destroy_fd_table(manager->ops.context, process->files);
+        process->files = NULL;
+    }
 
     child = process->children;
     process->children = NULL;
