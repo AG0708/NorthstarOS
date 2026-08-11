@@ -17,6 +17,13 @@ static void write_decimal(uint32_t value) {
     }
 }
 
+static uint32_t load_u32_le(const uint8_t *bytes) {
+    return (uint32_t)bytes[0] |
+           ((uint32_t)bytes[1] << 8) |
+           ((uint32_t)bytes[2] << 16) |
+           ((uint32_t)bytes[3] << 24);
+}
+
 static bool boot_contract_valid(const struct northstar_boot_info *boot) {
     if (boot == NULL || boot->magic != NORTHSTAR_BOOT_MAGIC ||
         boot->version != NORTHSTAR_BOOT_VERSION ||
@@ -28,10 +35,10 @@ static bool boot_contract_valid(const struct northstar_boot_info *boot) {
         return false;
     }
     if ((boot->flags & NORTHSTAR_BOOT_F_CHECKSUM) != 0) {
-        const uint32_t *words = (const uint32_t *)(const void *)boot;
+        const uint8_t *bytes = (const uint8_t *)(const void *)boot;
         uint32_t sum = 0;
-        for (size_t i = 0; i < boot->size / sizeof(uint32_t); ++i) {
-            sum += words[i];
+        for (size_t i = 0; i < boot->size; i += sizeof(uint32_t)) {
+            sum += load_u32_le(bytes + i);
         }
         if (sum != 0) {
             return false;

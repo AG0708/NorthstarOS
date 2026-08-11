@@ -12,6 +12,13 @@ static _Alignas(4096) uint8_t bitmap_storage[8192];
 static uint64_t allocated_pages[TEST_FRAMES];
 static uint8_t seen_frames[TEST_FRAMES / 8u];
 
+static uint32_t load_u32_le(const uint8_t *bytes) {
+    return (uint32_t)bytes[0] |
+           ((uint32_t)bytes[1] << 8) |
+           ((uint32_t)bytes[2] << 16) |
+           ((uint32_t)bytes[3] << 24);
+}
+
 static void make_boot_info(struct northstar_boot_info *boot,
                            struct northstar_e820_entry entries[4]) {
     memset(boot, 0, sizeof(*boot));
@@ -59,10 +66,10 @@ static void make_boot_info(struct northstar_boot_info *boot,
 static void set_checksum(struct northstar_boot_info *boot) {
     boot->flags |= NORTHSTAR_BOOT_F_CHECKSUM;
     boot->checksum = 0;
-    const uint32_t *words = (const uint32_t *)(const void *)boot;
+    const uint8_t *bytes = (const uint8_t *)(const void *)boot;
     uint32_t sum = 0;
-    for (size_t i = 0; i < sizeof(*boot) / sizeof(uint32_t); ++i) {
-        sum += words[i];
+    for (size_t i = 0; i < sizeof(*boot); i += sizeof(uint32_t)) {
+        sum += load_u32_le(bytes + i);
     }
     boot->checksum = 0u - sum;
 }
