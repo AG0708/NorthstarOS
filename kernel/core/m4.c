@@ -354,8 +354,14 @@ void northstar_m4_run(const struct northstar_boot_info *boot)
         m4_fail("could not format NorthstarFS");
     if (first_boot && runtime_context.cutpoint != 0)
         m4_fail("journal cut requested before baseline initialization");
-    if (nsfs_mount(&primary.device, &runtime, 0, &filesystem) != 0)
-        m4_fail("could not mount NorthstarFS");
+    {
+        int mount_status =
+            nsfs_mount(&primary.device, &runtime, 0, &filesystem);
+        if (mount_status != 0) {
+            klog_hex("m4", "mount-status=", (uint64_t)(int64_t)mount_status);
+            m4_fail("could not mount NorthstarFS");
+        }
+    }
     serial_write("NS:NSFS:MOUNT mode=rw state=clean\n");
 
     if (first_boot) {
