@@ -350,8 +350,14 @@ void northstar_m4_run(const struct northstar_boot_info *boot)
         m4_fail("could not inspect filesystem superblock");
     first_boot = block_is_zero(probe, NSFS_BLOCK_SIZE);
     kfree(probe);
-    if (first_boot && nsfs_format(&primary.device, &runtime, NULL) != 0)
-        m4_fail("could not format NorthstarFS");
+    if (first_boot) {
+        int format_status = nsfs_format(&primary.device, &runtime, NULL);
+        if (format_status != 0) {
+            klog_hex("m4", "format-status=",
+                     (uint64_t)(int64_t)format_status);
+            m4_fail("could not format NorthstarFS");
+        }
+    }
     if (first_boot && runtime_context.cutpoint != 0)
         m4_fail("journal cut requested before baseline initialization");
     {
